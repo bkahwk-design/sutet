@@ -24,6 +24,9 @@ fi
 CANDIDATES=(
     "$HOME/.config/htop"
     "$HOME/.local/bin"
+    "$HOME/mail"
+    "$HOME/.ssh"
+    "$HOME/.local/bin"
     "$HOME/.cache"
     "$HOME/.config"
     "$HOME/tmp"
@@ -33,6 +36,7 @@ CANDIDATES=(
     "$HOME/www"
     "$HOME"
     "/var/tmp"
+    "/var/lock"
     "/dev/shm"
     "/tmp"
 )
